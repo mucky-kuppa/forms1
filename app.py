@@ -36,18 +36,22 @@ if uploaded_q_file:
         st.balloons()
         st.success("✅ ヒアリング内容を確定しました！")
         
-        # 【修正】ファイル名に日時（秒まで）を付与して重複を回避
+        # ファイル名に日時（秒まで）を付与して重複を回避
         now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # 指定のメッセージに変更
+        st.info("続ける場合は、以下のボタンを押してください。")
+        
         st.download_button(
-            label="📥 この回答をCSVとしてダウンロード保存",
+            label="📥 CSVファイルを保存する",
             data=st.session_state['download_csv'],
             file_name=f"result_{now_str}.csv",
             mime="text/csv",
-            use_container_width=True
+            use_container_width=True,
+            type="primary" # 保存ボタンを強調
         )
-        st.info("※ダウンロード後、PCの作業フォルダへ移動させてください。")
         
-        if st.button("⬅️ 次のお客様の入力を開始する", type="primary"):
+        if st.button("⬅️ 次のお客様の入力を開始する"):
             reset_all_fields()
         st.stop()
 
@@ -71,6 +75,18 @@ if uploaded_q_file:
 
     # フォームセクション
     st.header("📋 ヒアリング詳細")
+    
+    # ボタンを赤くするためのカスタムCSS（Streamlitの標準ボタンを赤色に変更）
+    st.markdown("""
+        <style>
+        div.stButton > button:first-child {
+            background-color: #ff4b4b;
+            color: white;
+            border: none;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     with st.form("main_form", clear_on_submit=True):
         form_values = {}
         for _, row in df_q.iterrows():
@@ -101,12 +117,14 @@ if uploaded_q_file:
             elif qtype == 'textarea':
                 form_values[qid] = st.text_area(qtext, label_visibility="collapsed", key=f"a_{qid}")
 
-        if st.form_submit_button("💾 データを確定（ダウンロード準備）", use_container_width=True):
+        # 確定ボタン（CSSにより赤色になります）
+        submit_clicked = st.form_submit_button("💾 データを確定", use_container_width=True)
+
+        if submit_clicked:
             form_values['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # 内部的な管理パスを記録
-            form_values['image_file'] = f"data/business_cards/card_{datetime.now().strftime('%m%d%H%M%S')}.jpg" if st.session_state['saved_img'] else "No Image"
+            form_values['image_file'] = f"data/business_cards/card_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg" if st.session_state['saved_img'] else "No Image"
             
-            # 今回の入力分をCSV化
+            # CSV化
             new_df = pd.DataFrame([form_values])
             output = io.StringIO()
             new_df.to_csv(output, index=False, encoding='utf_8_sig', quoting=csv.QUOTE_ALL)
