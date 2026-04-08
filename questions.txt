@@ -1,14 +1,1 @@
 question_id,question_type,question_text,options
-date,radio,ご来場日,4/20|4/21|4/22|4/23|4/24
-company1,radio_grid,社名１（リストから1つ選択）,トヨタ自動車|デンソー|アイシン|トヨタ車体|豊田自動織機|トヨタ紡織|ジェイテクト|トヨタ合成|豊田通商|トヨタシステムズ|トヨタコネクティッド|トヨタファイナンシャルサービス|日野自動車|ダイハツ工業|Woven by Toyota|その他
-company2,text,社名（自由記入：社名２）,
-department,text,部署（OCR推定）,
-title,text,役職（OCR推定）,
-name,text,氏名,
-hr1,separator,,
-trouble,checkbox_list,お困りの工程（複数選択可）,企画・マーケティング|研究・開発|設計（製品・工程）|試作・検証|調達・サプライチェーン管理|製造・生産管理|品質管理・検査|物流・在庫管理|販売・サービス|保守・メンテナンス
-interest,checkbox_list,ご興味を示されていた展示物,会社・ソリプロ|空モビ|音のAR|その他
-opinion,textarea,ご意見・ヒアリング情報,
-kakezan,checkbox_list,共創・KAKEZANへの可能性,利用したい|共創検討してみたい|具体化検討したい|その他
-internal,checkbox_list,社内への情報共有事項（アクション）,資料送付希望|打合せ希望|その他
-internal_other,textarea,（その他）社内への情報共有事項（自由記入）,s
