@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import os
-import tkinter as tk
-from tkinter import filedialog
+#import tkinter as tk
+#from tkinter import filedialog
 from datetime import datetime
 from PIL import Image
 import csv
