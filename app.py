@@ -29,26 +29,21 @@ uploaded_q_file = st.sidebar.file_uploader("1. questions.csv を選択", type=["
 if uploaded_q_file:
     df_q = pd.read_csv(uploaded_q_file, encoding='utf_8_sig')
 
-    # 【保存・完了画面】
+    # 【完了画面】
     if st.session_state['submitted_success']:
         
-        # 保存ボタンが押された後の処理
+        # 保存ボタンが押された後の表示
         if st.session_state.get('download_clicked'):
-            st.balloons() # 保存後にバルーンを発生
+            st.balloons()  # 保存後にバルーンを発生
             st.success("✅ 保存が完了しました。")
-            
-            st.divider()
-            # 保存が完了したら、メイン画面にリセット（次へ）ボタンを出す
-            if st.button("⬅️ 次のお客様の入力を開始する", use_container_width=True, type="secondary"):
-                reset_all_fields()
         else:
-            # まだ保存していない場合
+            # まだ保存していない場合のみ表示
             st.warning("⚠️ ヒヤリング内容を確定します")
         
         now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        # 保存ボタン（クリックされると自動的にリロードが走り、download_clickedがTrueになる）
-        if st.download_button(
+        # 保存ボタン
+        st.download_button(
             label="📥 保存",
             data=st.session_state['download_csv'],
             file_name=f"result_{now_str}.csv",
@@ -56,9 +51,15 @@ if uploaded_q_file:
             use_container_width=True,
             type="primary",
             on_click=lambda: st.session_state.update({"download_clicked": True})
-        ):
-            pass 
+        )
 
+        # 保存ボタンが押された後だけ、その下にスペースを開けて「次へ」を表示
+        if st.session_state.get('download_clicked'):
+            st.write("")  # スペース用の空行
+            st.write("")  # スペース用の空行
+            if st.button("⬅️ 次のお客様の入力を開始する", use_container_width=True, type="secondary"):
+                reset_all_fields()
+        
         st.stop()
 
     # 【入力画面】
@@ -83,7 +84,7 @@ if uploaded_q_file:
     # フォームセクション
     st.header("📋 ヒアリング詳細")
     
-    # CSS: 確定ボタンを赤色にする
+    # CSS: 「データを確定」ボタンを赤色にする
     st.markdown("""
         <style>
         div.stButton > button:first-child {
@@ -130,7 +131,7 @@ if uploaded_q_file:
         # 赤い「データを確定」ボタン
         if st.form_submit_button("💾 データを確定", use_container_width=True):
             form_values['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # 仮想画像パス
+            # 仮想パスの記録
             form_values['image_file'] = f"data/business_cards/card_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg" if st.session_state['saved_img'] else "No Image"
             
             # CSVを生成
