@@ -11,7 +11,6 @@ st.set_page_config(page_title="展示会ヒアリング", page_icon="📝", layo
 
 # --- 初期化関数 ---
 def reset_all_fields():
-    # セッションを空にする（クラウドではフォルダパスの退避は不要）
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.rerun()
@@ -23,8 +22,17 @@ if 'submitted_success' not in st.session_state: st.session_state['submitted_succ
 
 # --- サイドバー ---
 st.sidebar.header("⚙️ システム設定")
-# 【変更点】クラウドでは作業フォルダを直接開けないため、質問ファイルをアップロードする形式に変更
-uploaded_q_file = st.sidebar.file_uploader("questions.csv をアップロード", type="csv")
+
+# 【変更点】フォルダー選択の代わりに「起点となるCSV」を指定
+uploaded_q_file = st.sidebar.file_uploader(
+    "作業の起点となる questions.csv を選択してください", 
+    type=["csv"]
+)
+
+if uploaded_q_file:
+    # 仮想的な「作業フォルダー」の名前として保持
+    st.session_state['working_folder'] = "Current Project"
+    st.sidebar.success(f"作業対象: {uploaded_q_file.name}")
 
 st.sidebar.divider()
 if st.sidebar.button("🔄 全てを初期化して次の客へ", type="secondary"):
@@ -37,15 +45,24 @@ if uploaded_q_file:
 
     if st.session_state['submitted_success']:
         st.balloons()
-        st.success("✅ 送信が完了しました！")
-        st.info("※クラウド版ではブラウザ上で一時的に保持されます。")
+        st.success("✅ ヒアリング完了！データを一時保存しました。")
+        
+        # クラウド版では最後にまとめてDLするか、API等で送る設計が一般的です
+        if 'last_result_csv' in st.session_state:
+            st.download_button(
+                label="📥 この内容を results.csv としてダウンロード",
+                data=st.session_state['last_result_csv'],
+                file_name="results.csv",
+                mime="text/csv"
+            )
+
         if st.button("⬅️ 次のお客様の入力を開始する", type="primary"):
             reset_all_fields()
         st.stop()
 
     st.title("📝 展示会ヒアリング入力")
 
-    # カメラセクション
+    # カメラセクション (名刺撮影)
     with st.expander("📸 名刺撮影", expanded=not st.session_state['saved_img']):
         if not st.session_state['camera_on']:
             if st.button("📷 カメラを起動する"):
@@ -55,16 +72,9 @@ if uploaded_q_file:
             img_file = st.camera_input("撮影")
             if img_file:
                 if st.button("✅ この画像を採用"):
-                    # クラウドではファイルを直接保存せず、メモリ内に保持します
                     st.session_state['saved_img'] = img_file
                     st.session_state['camera_on'] = False
                     st.rerun()
-            if st.button("❌ キャンセル"):
-                st.session_state['camera_on'] = False
-                st.rerun()
-
-    if st.session_state['saved_img']:
-        st.image(st.session_state['saved_img'], caption="撮影済み名刺", width=300)
 
     st.divider()
 
@@ -82,39 +92,26 @@ if uploaded_q_file:
 
             st.write(f"**{qtext}**")
             if qtype == 'radio_grid' or qid == 'date':
-                form_values[qid] = st.radio(qtext, opts, label_visibility="collapsed", horizontal=True, key=f"radio_{qid}")
+                form_values[qid] = st.radio(qtext, opts, horizontal=True, key=f"radio_{qid}")
             elif qtype == 'checkbox_list':
-                cols = st.columns(3)
-                selected = []
-                for i, opt in enumerate(opts):
-                    with cols[i % 3]:
-                        if st.checkbox(opt, key=f"cb_{qid}_{opt}"):
-                            selected.append(opt)
+                selected = [opt for opt in opts if st.checkbox(opt, key=f"cb_{qid}_{opt}")]
                 form_values[qid] = "|".join(selected)
-            elif qtype == 'text':
-                form_values[qid] = st.text_input(qtext, label_visibility="collapsed", key=f"text_{qid}")
-            elif qtype == 'textarea':
-                form_values[qid] = st.text_area(qtext, label_visibility="collapsed", key=f"area_{qid}")
+            elif qtype in ['text', 'textarea']:
+                func = st.text_input if qtype == 'text' else st.text_area
+                form_values[qid] = func(qtext, key=f"input_{qid}")
 
-        if st.form_submit_button("💾 内容を確認（ダウンロード準備）", use_container_width=True):
+        if st.form_submit_button("💾 データを確定する", use_container_width=True):
             form_values['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 内部的な「フォルダー構成」をシミュレートしたパスを記録
+            form_values['image_path'] = f"data/business_cards/card_{datetime.now().strftime('%m%d%H%M')}.jpg"
             
-            # 【重要】クラウドではサーバーのCドライブ等に保存できないため、CSVをメモリ上で作成します
+            # CSV作成
             res_df = pd.DataFrame([form_values])
-            csv_buffer = io.StringIO()
-            res_df.to_csv(csv_buffer, index=False, encoding='utf_8_sig', quoting=csv.QUOTE_ALL)
+            output = io.StringIO()
+            res_df.to_csv(output, index=False, encoding='utf_8_sig', quoting=csv.QUOTE_ALL)
             
-            st.session_state['csv_data'] = csv_buffer.getvalue()
+            st.session_state['last_result_csv'] = output.getvalue()
             st.session_state['submitted_success'] = True
             st.rerun()
-
-    # 送信成功後のダウンロードボタン（クラウド環境での運用案）
-    if st.session_state['submitted_success'] and 'csv_data' in st.session_state:
-        st.download_button(
-            label="📥 結果をCSVとして保存",
-            data=st.session_state['csv_data'],
-            file_name=f"result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
 else:
-    st.warning("左のサイドバーから questions.csv をアップロードしてください。")
+    st.warning("左のサイドバーから questions.csv を指定してください。")
