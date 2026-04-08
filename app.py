@@ -7,15 +7,15 @@ import io
 # --- ページ設定 ---
 st.set_page_config(page_title="展示会ヒアリング", page_icon="📝", layout="centered")
 
+# --- リセット関数 ---
 def reset_all_fields():
-    # 質問ファイル以外をリセット
-    keys_to_keep = ['uploaded_q_file']
+    # 質問ファイル(uploaded_q_file)以外の全てのセッション状態を削除
     for key in list(st.session_state.keys()):
-        if key not in keys_to_keep:
+        if key != 'uploaded_q_file':
             del st.session_state[key]
     st.rerun()
 
-# セッション初期化
+# --- セッション初期化 ---
 if 'camera_on' not in st.session_state: st.session_state['camera_on'] = False
 if 'saved_img' not in st.session_state: st.session_state['saved_img'] = None
 if 'submitted_success' not in st.session_state: st.session_state['submitted_success'] = False
@@ -26,7 +26,7 @@ st.sidebar.header("⚙️ システム設定")
 uploaded_q_file = st.sidebar.file_uploader("1. questions.csv を選択", type=["csv"])
 
 st.sidebar.divider()
-# 管理用リセットボタン（サイドバーには常に配置）
+# 強制リセットボタン
 if st.sidebar.button("🔄 入力を強制リセット", type="secondary"):
     reset_all_fields()
 
@@ -34,19 +34,17 @@ if st.sidebar.button("🔄 入力を強制リセット", type="secondary"):
 if uploaded_q_file:
     df_q = pd.read_csv(uploaded_q_file, encoding='utf_8_sig')
 
-    # 送信成功後の画面
+    # 送信完了後の画面
     if st.session_state['submitted_success']:
         st.balloons()
         st.success("✅ ヒアリング内容を確定しました！")
         
-        # ファイル名に日時（秒まで）を付与
         now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        st.info("続ける場合は、以下のボタンを押してください。")
+        # 指定のメッセージに変更
+        st.info("ヒアリング内容を確定なら、確定ボタンを押してください！")
         
         # 保存ボタン
-        # ※Streamlitのdownload_buttonは押すと画面がリロードされる特性があるため
-        # それを利用して「保存済み」状態を管理します。
         if st.download_button(
             label="📥 CSVファイルを保存する",
             data=st.session_state['download_csv'],
@@ -57,10 +55,11 @@ if uploaded_q_file:
         ):
             # 保存ボタンが押されたらフラグを立てる
             st.session_state['download_clicked'] = True
+            st.rerun()
 
         # CSV保存ボタンが押された後だけ、次の客へのボタンを出す
         if st.session_state.get('download_clicked'):
-            st.write("---")
+            st.divider()
             if st.button("⬅️ 次のお客様の入力を開始する", use_container_width=True):
                 reset_all_fields()
         
@@ -136,6 +135,7 @@ if uploaded_q_file:
 
         if submit_clicked:
             form_values['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 管理用の画像パス記録
             form_values['image_file'] = f"data/business_cards/card_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg" if st.session_state['saved_img'] else "No Image"
             
             # CSV作成
