@@ -1,0 +1,12 @@
+question_id,question_type,question_text,options
+event_date,radio,観戦日,2026/04/20|2026/04/21|決勝（04/22）
+category1,radio_grid,チケット区分,一般|学生|ファミリー|VIP|招待
+area,text,お住まいの地域（都道府県）,
+name,text,お名前,
+hr1,separator,,
+motivation,checkbox_list,来場のきっかけ（複数選択可）,SNSを見て|友人の誘い|ポスター・看板|地元のファンだから|対戦相手が好きだから
+merch,checkbox_list,本日購入したグッズ,ユニフォーム|タオル|キーホルダー|パンフレット|未購入
+satisfaction,checkbox_list,会場の満足度,非常に満足|満足|普通|不満
+opinion,textarea,運営へのご意見・ご要望,
+revisit,checkbox_list,次回観戦の意向,必ず来たい|検討したい|内容次第|来ない
+future_request,textarea,今後企画してほしいイベント,
