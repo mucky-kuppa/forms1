@@ -9,7 +9,7 @@ st.set_page_config(page_title="展示会ヒアリング", page_icon="📝", layo
 
 # --- リセット関数 ---
 def reset_all_fields():
-    # 質問ファイル(uploaded_q_file)以外の全てのセッション状態を削除
+    # questions.csv 以外のセッションを完全にクリア
     for key in list(st.session_state.keys()):
         if key != 'uploaded_q_file':
             del st.session_state[key]
@@ -25,46 +25,43 @@ if 'download_clicked' not in st.session_state: st.session_state['download_clicke
 st.sidebar.header("⚙️ システム設定")
 uploaded_q_file = st.sidebar.file_uploader("1. questions.csv を選択", type=["csv"])
 
-st.sidebar.divider()
-if st.sidebar.button("🔄 入力を強制リセット", type="secondary"):
-    reset_all_fields()
-
 # --- メインロジック ---
 if uploaded_q_file:
     df_q = pd.read_csv(uploaded_q_file, encoding='utf_8_sig')
 
-    # 送信完了後の画面
+    # 【保存・完了画面】
     if st.session_state['submitted_success']:
-        # 保存ボタンが押された後にバルーンを出す
+        
+        # 保存ボタンが押された後の処理
         if st.session_state.get('download_clicked'):
-            st.balloons()
+            st.balloons() # 保存後にバルーンを発生
             st.success("✅ 保存が完了しました。")
+            
+            st.divider()
+            # 保存が完了したら、メイン画面にリセット（次へ）ボタンを出す
+            if st.button("⬅️ 次のお客様の入力を開始する", use_container_width=True, type="secondary"):
+                reset_all_fields()
         else:
+            # まだ保存していない場合
             st.warning("⚠️ ヒヤリング内容を確定します")
         
         now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        # 保存ボタン
+        # 保存ボタン（クリックされると自動的にリロードが走り、download_clickedがTrueになる）
         if st.download_button(
             label="📥 保存",
             data=st.session_state['download_csv'],
             file_name=f"result_{now_str}.csv",
             mime="text/csv",
             use_container_width=True,
-            type="primary"
+            type="primary",
+            on_click=lambda: st.session_state.update({"download_clicked": True})
         ):
-            # 保存ボタンが押された瞬間にフラグを立て、画面を更新してバルーンを出す
-            st.session_state['download_clicked'] = True
-            st.rerun()
+            pass 
 
-        # 保存ボタンが押された後だけ、次の客へのボタンを出す
-        if st.session_state.get('download_clicked'):
-            st.divider()
-            if st.button("⬅️ 次のお客様の入力を開始する", use_container_width=True):
-                reset_all_fields()
-        
         st.stop()
 
+    # 【入力画面】
     st.title("📝 展示会ヒアリング入力")
 
     # カメラセクション
@@ -86,7 +83,7 @@ if uploaded_q_file:
     # フォームセクション
     st.header("📋 ヒアリング詳細")
     
-    # 確定ボタンを赤くするためのCSS
+    # CSS: 確定ボタンを赤色にする
     st.markdown("""
         <style>
         div.stButton > button:first-child {
@@ -130,15 +127,13 @@ if uploaded_q_file:
             elif qtype == 'textarea':
                 form_values[qid] = st.text_area(qtext, label_visibility="collapsed", key=f"a_{qid}")
 
-        # データを確定ボタン（赤）
-        submit_clicked = st.form_submit_button("💾 データを確定", use_container_width=True)
-
-        if submit_clicked:
+        # 赤い「データを確定」ボタン
+        if st.form_submit_button("💾 データを確定", use_container_width=True):
             form_values['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # 管理用の仮想パス
+            # 仮想画像パス
             form_values['image_file'] = f"data/business_cards/card_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg" if st.session_state['saved_img'] else "No Image"
             
-            # 今回のデータをCSVとしてメモリに作成
+            # CSVを生成
             new_df = pd.DataFrame([form_values])
             output = io.StringIO()
             new_df.to_csv(output, index=False, encoding='utf_8_sig', quoting=csv.QUOTE_ALL)
