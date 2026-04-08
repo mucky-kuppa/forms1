@@ -19,40 +19,51 @@ def reset_all_fields():
 if 'camera_on' not in st.session_state: st.session_state['camera_on'] = False
 if 'saved_img' not in st.session_state: st.session_state['saved_img'] = None
 if 'submitted_success' not in st.session_state: st.session_state['submitted_success'] = False
+if 'download_clicked' not in st.session_state: st.session_state['download_clicked'] = False
 
 # --- サイドバー ---
 st.sidebar.header("⚙️ システム設定")
 uploaded_q_file = st.sidebar.file_uploader("1. questions.csv を選択", type=["csv"])
 
 st.sidebar.divider()
-if st.sidebar.button("🔄 次のお客様へ（入力をリセット）", type="secondary"):
+# 管理用リセットボタン（サイドバーには常に配置）
+if st.sidebar.button("🔄 入力を強制リセット", type="secondary"):
     reset_all_fields()
 
 # --- メインロジック ---
 if uploaded_q_file:
     df_q = pd.read_csv(uploaded_q_file, encoding='utf_8_sig')
 
+    # 送信成功後の画面
     if st.session_state['submitted_success']:
         st.balloons()
         st.success("✅ ヒアリング内容を確定しました！")
         
-        # ファイル名に日時（秒まで）を付与して重複を回避
+        # ファイル名に日時（秒まで）を付与
         now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        # 指定のメッセージに変更
         st.info("続ける場合は、以下のボタンを押してください。")
         
-        st.download_button(
+        # 保存ボタン
+        # ※Streamlitのdownload_buttonは押すと画面がリロードされる特性があるため
+        # それを利用して「保存済み」状態を管理します。
+        if st.download_button(
             label="📥 CSVファイルを保存する",
             data=st.session_state['download_csv'],
             file_name=f"result_{now_str}.csv",
             mime="text/csv",
             use_container_width=True,
-            type="primary" # 保存ボタンを強調
-        )
+            type="primary"
+        ):
+            # 保存ボタンが押されたらフラグを立てる
+            st.session_state['download_clicked'] = True
+
+        # CSV保存ボタンが押された後だけ、次の客へのボタンを出す
+        if st.session_state.get('download_clicked'):
+            st.write("---")
+            if st.button("⬅️ 次のお客様の入力を開始する", use_container_width=True):
+                reset_all_fields()
         
-        if st.button("⬅️ 次のお客様の入力を開始する"):
-            reset_all_fields()
         st.stop()
 
     st.title("📝 展示会ヒアリング入力")
@@ -76,13 +87,17 @@ if uploaded_q_file:
     # フォームセクション
     st.header("📋 ヒアリング詳細")
     
-    # ボタンを赤くするためのカスタムCSS（Streamlitの標準ボタンを赤色に変更）
+    # 確定ボタンを赤くするためのCSS
     st.markdown("""
         <style>
         div.stButton > button:first-child {
             background-color: #ff4b4b;
             color: white;
             border: none;
+        }
+        div.stButton > button:first-child:hover {
+            background-color: #d33636;
+            color: white;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -99,7 +114,6 @@ if uploaded_q_file:
 
             st.write(f"**{qtext}**")
             
-            # 【横並び対応】
             if qtype == 'radio_grid' or qid == 'date':
                 form_values[qid] = st.radio(qtext, opts, label_visibility="collapsed", horizontal=True, key=f"r_{qid}")
             
@@ -117,14 +131,14 @@ if uploaded_q_file:
             elif qtype == 'textarea':
                 form_values[qid] = st.text_area(qtext, label_visibility="collapsed", key=f"a_{qid}")
 
-        # 確定ボタン（CSSにより赤色になります）
+        # 赤色ボタン
         submit_clicked = st.form_submit_button("💾 データを確定", use_container_width=True)
 
         if submit_clicked:
             form_values['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             form_values['image_file'] = f"data/business_cards/card_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg" if st.session_state['saved_img'] else "No Image"
             
-            # CSV化
+            # CSV作成
             new_df = pd.DataFrame([form_values])
             output = io.StringIO()
             new_df.to_csv(output, index=False, encoding='utf_8_sig', quoting=csv.QUOTE_ALL)
