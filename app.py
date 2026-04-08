@@ -8,32 +8,24 @@ import io
 st.set_page_config(page_title="展示会ヒアリング", page_icon="📝", layout="centered")
 
 def reset_all_fields():
-    # 蓄積用データと質問ファイル以外をリセット
-    keys_to_keep = ['existing_data', 'uploaded_q_file']
+    # 質問ファイル以外をリセット
+    keys_to_keep = ['uploaded_q_file']
     for key in list(st.session_state.keys()):
         if key not in keys_to_keep:
             del st.session_state[key]
     st.rerun()
 
 # セッション初期化
-if 'existing_data' not in st.session_state: st.session_state['existing_data'] = None
 if 'camera_on' not in st.session_state: st.session_state['camera_on'] = False
 if 'saved_img' not in st.session_state: st.session_state['saved_img'] = None
 if 'submitted_success' not in st.session_state: st.session_state['submitted_success'] = False
 
 # --- サイドバー ---
-st.sidebar.header("⚙️ システム・フォルダ設定")
-
-# 1. 質問ファイルの読み込み
-uploaded_q_file = st.sidebar.file_uploader("questions.csv を選択", type=["csv"])
-
-# 2. 蓄積データの読み込み（これまでの results.csv を入れることで継続蓄積が可能）
-uploaded_res_file = st.sidebar.file_uploader("これまでの results.csv を選択（追記用）", type=["csv"])
-if uploaded_res_file:
-    st.session_state['existing_data'] = pd.read_csv(uploaded_res_file, encoding='utf_8_sig')
+st.sidebar.header("⚙️ システム設定")
+uploaded_q_file = st.sidebar.file_uploader("1. questions.csv を選択", type=["csv"])
 
 st.sidebar.divider()
-if st.sidebar.button("🔄 次のお客様へ（リセット）", type="secondary"):
+if st.sidebar.button("🔄 次のお客様へ（入力をリセット）", type="secondary"):
     reset_all_fields()
 
 # --- メインロジック ---
@@ -44,15 +36,16 @@ if uploaded_q_file:
         st.balloons()
         st.success("✅ ヒアリング内容を確定しました！")
         
-        # ダウンロードボタン（蓄積された全体データを出力）
+        # 【修正】ファイル名に日時（秒まで）を付与して重複を回避
+        now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         st.download_button(
-            label="📥 更新された results.csv をダウンロードして保存",
+            label="📥 この回答をCSVとしてダウンロード保存",
             data=st.session_state['download_csv'],
-            file_name="results.csv",
+            file_name=f"result_{now_str}.csv",
             mime="text/csv",
             use_container_width=True
         )
-        st.info("※ダウンロードしたファイルをPCの作業フォルダに上書きしてください。")
+        st.info("※ダウンロード後、PCの作業フォルダへ移動させてください。")
         
         if st.button("⬅️ 次のお客様の入力を開始する", type="primary"):
             reset_all_fields()
@@ -90,12 +83,11 @@ if uploaded_q_file:
 
             st.write(f"**{qtext}**")
             
-            # 【修正】選択肢を横に並べる (label_visibility="collapsed"で余白削減)
+            # 【横並び対応】
             if qtype == 'radio_grid' or qid == 'date':
                 form_values[qid] = st.radio(qtext, opts, label_visibility="collapsed", horizontal=True, key=f"r_{qid}")
             
             elif qtype == 'checkbox_list':
-                # チェックボックスを3列に並べる
                 cols = st.columns(3)
                 selected = []
                 for i, opt in enumerate(opts):
@@ -109,25 +101,17 @@ if uploaded_q_file:
             elif qtype == 'textarea':
                 form_values[qid] = st.text_area(qtext, label_visibility="collapsed", key=f"a_{qid}")
 
-        if st.form_submit_button("💾 内容を保存してダウンロード準備", use_container_width=True):
+        if st.form_submit_button("💾 データを確定（ダウンロード準備）", use_container_width=True):
             form_values['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 内部的な管理パスを記録
+            form_values['image_file'] = f"data/business_cards/card_{datetime.now().strftime('%m%d%H%M%S')}.jpg" if st.session_state['saved_img'] else "No Image"
             
-            # 新規データ
+            # 今回の入力分をCSV化
             new_df = pd.DataFrame([form_values])
-            
-            # 【蓄積ロジック】既存データがあれば結合する
-            if st.session_state['existing_data'] is not None:
-                final_df = pd.concat([st.session_state['existing_data'], new_df], ignore_index=True)
-            else:
-                final_df = new_df
-            
-            # ダウンロード用バッファ
             output = io.StringIO()
-            final_df.to_csv(output, index=False, encoding='utf_8_sig', quoting=csv.QUOTE_ALL)
-            st.session_state['download_csv'] = output.getvalue()
+            new_df.to_csv(output, index=False, encoding='utf_8_sig', quoting=csv.QUOTE_ALL)
             
-            # 次の入力のためにセッションを更新
-            st.session_state['existing_data'] = final_df
+            st.session_state['download_csv'] = output.getvalue()
             st.session_state['submitted_success'] = True
             st.rerun()
 else:
