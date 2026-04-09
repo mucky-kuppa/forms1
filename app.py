@@ -1,146 +1,97 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-import csv
 import io
+from datetime import datetime
 
-# --- ページ設定 ---
-st.set_page_config(page_title="展示会ヒアリング", page_icon="📝", layout="centered")
-
-# --- リセット関数 ---
-def reset_all_fields():
-    # questions.csv 以外のセッションを完全にクリア
-    for key in list(st.session_state.keys()):
-        if key != 'uploaded_q_file':
-            del st.session_state[key]
-    st.rerun()
-
-# --- セッション初期化 ---
-if 'camera_on' not in st.session_state: st.session_state['camera_on'] = False
-if 'saved_img' not in st.session_state: st.session_state['saved_img'] = None
-if 'submitted_success' not in st.session_state: st.session_state['submitted_success'] = False
-if 'download_clicked' not in st.session_state: st.session_state['download_clicked'] = False
-
-# --- サイドバー ---
-st.sidebar.header("⚙️ システム設定")
-uploaded_q_file = st.sidebar.file_uploader("1. questions.csv を選択", type=["csv"])
-
-# --- メインロジック ---
-if uploaded_q_file:
-    df_q = pd.read_csv(uploaded_q_file, encoding='utf_8_sig')
-
-    # 【完了画面】
-    if st.session_state['submitted_success']:
-        
-        # 保存ボタンが押された後の表示
-        if st.session_state.get('download_clicked'):
-            st.balloons()  # 保存後にバルーンを発生
-            st.success("✅ 保存が完了しました。")
-        else:
-            # まだ保存していない場合のみ表示
-            st.warning("⚠️ ヒヤリング内容を確定します")
-        
-        now_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # 保存ボタン
-        st.download_button(
-            label="📥 保存",
-            data=st.session_state['download_csv'],
-            file_name=f"result_{now_str}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            type="primary",
-            on_click=lambda: st.session_state.update({"download_clicked": True})
-        )
-
-        # 保存ボタンが押された後だけ、その下にスペースを開けて「次へ」を表示
-        if st.session_state.get('download_clicked'):
-            st.write("")  # スペース用の空行
-            st.write("")  # スペース用の空行
-            if st.button("⬅️ 次のお客様の入力を開始する", use_container_width=True, type="secondary"):
-                reset_all_fields()
-        
+# --- セキュリティ設定（SecretsからCSV読み込み） ---
+def load_config():
+    if "questions_csv" not in st.secrets:
+        st.error("Secretsに 'questions_csv' が設定されていません。")
         st.stop()
+    csv_raw = st.secrets["questions_csv"]
+    return pd.read_csv(io.StringIO(csv_raw))
 
-    # 【入力画面】
+def main():
+    st.set_page_config(page_title="展示会ヒアリングシート", layout="wide")
     st.title("📝 展示会ヒアリング入力")
 
-    # カメラセクション
-    with st.expander("📸 名刺撮影", expanded=not st.session_state['saved_img']):
-        if not st.session_state['camera_on']:
-            if st.button("📷 カメラを起動する"):
-                st.session_state['camera_on'] = True
-                st.rerun()
-        else:
-            img_file = st.camera_input("撮影")
-            if img_file:
-                if st.button("✅ この画像を採用"):
-                    st.session_state['saved_img'] = img_file
-                    st.session_state['camera_on'] = False
-                    st.rerun()
-
-    st.divider()
-
-    # フォームセクション
-    st.header("📋 ヒアリング詳細")
+    # 質問データの読み込み
+    df_questions = load_config()
     
-    # CSS: 「データを確定」ボタンを赤色にする
-    st.markdown("""
-        <style>
-        div.stButton > button:first-child {
-            background-color: #ff4b4b;
-            color: white;
-            border: none;
-        }
-        div.stButton > button:first-child:hover {
-            background-color: #d33636;
-            color: white;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    # セッション状態で入力データを管理
+    with st.form("survey_form", clear_on_submit=True):
+        
+        # ---------------------------------------------------------
+        # レイヤー1：顧客基礎情報
+        # ---------------------------------------------------------
+        st.header("👤 顧客基礎情報")
+        col1, col2 = st.columns(2)
+        
+        entry_data = {}
+        
+        # 基礎情報に分類するIDリスト
+        basic_info_ids = ['date', 'company', 'company2', 'department', 'title', 'name']
+        
+        for _, row in df_questions.iterrows():
+            q_id = row['question_id']
+            if q_id in basic_info_ids:
+                q_type = row['question_type']
+                q_text = row['question_text']
+                options = str(row['options']).split('|') if pd.notna(row['options']) else []
 
-    with st.form("main_form", clear_on_submit=True):
-        form_values = {}
-        for _, row in df_q.iterrows():
-            qid, qtype, qtext = str(row['question_id']), row['question_type'], row['question_text']
-            opts = str(row['options']).split('|') if pd.notna(row['options']) else []
-
-            if qtype == 'separator':
-                st.divider()
-                continue
-
-            st.write(f"**{qtext}**")
-            
-            if qtype == 'radio_grid' or qid == 'date':
-                form_values[qid] = st.radio(qtext, opts, label_visibility="collapsed", horizontal=True, key=f"r_{qid}")
-            
-            elif qtype == 'checkbox_list':
-                cols = st.columns(3)
-                selected = []
-                for i, opt in enumerate(opts):
-                    with cols[i % 3]:
-                        if st.checkbox(opt, key=f"cb_{qid}_{opt}"):
-                            selected.append(opt)
-                form_values[qid] = "|".join(selected)
+                # レイアウトを2列に分ける（適宜調整）
+                target_col = col1 if basic_info_ids.index(q_id) % 2 == 0 else col2
                 
-            elif qtype == 'text':
-                form_values[qid] = st.text_input(qtext, label_visibility="collapsed", key=f"t_{qid}")
-            elif qtype == 'textarea':
-                form_values[qid] = st.text_area(qtext, label_visibility="collapsed", key=f"a_{qid}")
+                with target_col:
+                    if q_type == 'radio':
+                        entry_data[q_id] = st.radio(q_text, options, key=q_id)
+                    elif q_type == 'checkbox':
+                        entry_data[q_id] = st.multiselect(q_text, options, key=q_id)
+                    elif q_type == 'text':
+                        entry_data[q_id] = st.text_input(q_text, key=q_id)
 
-        # 赤い「データを確定」ボタン
-        if st.form_submit_button("💾 データを確定", use_container_width=True):
-            form_values['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            # 仮想パスの記録
-            form_values['image_file'] = f"data/business_cards/card_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg" if st.session_state['saved_img'] else "No Image"
-            
-            # CSVを生成
-            new_df = pd.DataFrame([form_values])
-            output = io.StringIO()
-            new_df.to_csv(output, index=False, encoding='utf_8_sig', quoting=csv.QUOTE_ALL)
-            
-            st.session_state['download_csv'] = output.getvalue()
-            st.session_state['submitted_success'] = True
-            st.rerun()
-else:
-    st.warning("サイドバーから questions.csv を指定してください。")
+        st.divider()
+
+        # ---------------------------------------------------------
+        # レイヤー2：ヒアリング内容
+        # ---------------------------------------------------------
+        st.header("🔍 ヒアリング内容")
+        
+        hearing_info_ids = ['interest', 'opinion', 'kakezan', 'internal', 'internal_other']
+        
+        for _, row in df_questions.iterrows():
+            q_id = row['question_id']
+            if q_id in hearing_info_ids:
+                q_type = row['question_type']
+                q_text = row['question_text']
+                options = str(row['options']).split('|') if pd.notna(row['options']) else []
+
+                if q_type == 'checkbox':
+                    entry_data[q_id] = st.multiselect(q_text, options, key=q_id)
+                elif q_type == 'textarea':
+                    entry_data[q_id] = st.text_area(q_text, key=q_id)
+
+        # ---------------------------------------------------------
+        # 【コメントアウト】カメラ・画像保存機能
+        # ---------------------------------------------------------
+        # st.divider()
+        # st.header("📸 写真記録")
+        # uploaded_file = st.file_uploader("名刺または展示物写真を撮影", type=['jpg', 'jpeg', 'png'])
+        # if uploaded_file:
+        #     st.image(uploaded_file, width=300)
+        #     if st.button("この画像を採用"):
+        #         # upload_to_drive(uploaded_file, f"{entry_data.get('name')}_photo.jpg")
+        #         st.info("画像保存ロジック（未有効）")
+        
+        st.divider()
+        
+        # 送信ボタン
+        submitted = st.form_submit_button("回答を送信して保存")
+        
+        if submitted:
+            entry_data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.success("データを送信しました。")
+            st.json(entry_data) # 確認用表示
+
+if __name__ == "__main__":
+    main()
